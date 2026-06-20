@@ -1,0 +1,68 @@
+# Architecture
+
+Uriel is split into a durable public control plane and one or more stateful
+NixOS workers.
+
+## Control Plane
+
+The Cloudflare Worker accepts human and system ingress:
+
+- API calls from `urielctl`
+- Discord interactions
+- GitHub webhooks
+- Linear webhooks
+- Slack events
+- Twilio SMS webhooks
+
+The Worker stores job state in one Durable Object instance named `global`.
+Artifacts are uploaded to R2 through authenticated worker calls. The control
+plane can dispatch jobs to a worker over HTTPS, typically through a Cloudflare
+Tunnel to the NixOS host.
+
+## Worker
+
+The NixOS worker runs as a systemd service and owns state under
+`/var/lib/uriel`:
+
+- `repos`: bare Git repository caches
+- `worktrees`: one fresh worktree per job
+- `artifacts`: job logs, transcripts, screenshots, traces, and videos
+
+For every job, the worker:
+
+1. Fetches latest `origin/main`.
+2. Creates a fresh branch and worktree from `origin/main`.
+3. Reads `AGENTS.md` if present.
+4. Evaluates `nix flake show --json --no-write-lock-file` when `flake.nix`
+   exists.
+5. Lists `just` recipes when a `justfile` exists.
+6. Runs profile adapter setup.
+7. Runs OpenCode headlessly.
+8. Runs requested QA.
+9. Commits changes, pushes the branch, and creates a draft PR with `gh`.
+
+## Profiles And Adapters
+
+Uriel core is organization-agnostic. It treats a profile as an opaque adopter
+identifier such as `acme/mobile` or `platform/web`. Core can match a profile
+from caller-provided rules, but it ships with only `generic`.
+
+Profile behavior lives behind adapters:
+
+- Issue tracker adapter: creates or updates external issue records.
+- Secrets provider adapter: prepares credentials for a worktree.
+- Repo bootstrap adapter: runs environment activation such as `direnv allow`.
+- QA adapter: captures browser and Android evidence.
+- Artifact adapter: uploads logs, traces, screenshots, and recordings.
+- Webhook adapter: maps provider events into generic Uriel jobs.
+
+Repository-specific behavior should live in the target repository's
+`AGENTS.md`, `flake.nix`, and `justfile`, or in adopter-owned profile adapter
+configuration.
+
+## Why Not Cloudflare Containers For The Worker?
+
+Cloudflare Containers and Sandboxes are good for isolated shell workloads and
+small code execution. Uriel keeps heavy Nix builds, browser automation, and
+Android emulator QA on a NixOS VM because Android acceleration needs KVM and
+larger mutable build caches than a small edge container should own.

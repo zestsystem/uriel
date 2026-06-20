@@ -1,0 +1,246 @@
+export const qaModes = ["none", "browser", "android", "both"] as const;
+export type QaMode = (typeof qaModes)[number];
+
+export const jobStatuses = [
+  "queued",
+  "running",
+  "waiting_approval",
+  "completed",
+  "failed",
+  "cancelled"
+] as const;
+export type JobStatus = (typeof jobStatuses)[number];
+
+export const jobSources = [
+  "api",
+  "discord",
+  "github",
+  "linear",
+  "slack",
+  "twilio"
+] as const;
+export type JobSource = (typeof jobSources)[number];
+
+export type RepoProfile = string;
+
+export type JsonPrimitive = string | number | boolean | null;
+export type JsonValue =
+  | JsonPrimitive
+  | JsonValue[]
+  | { [key: string]: JsonValue };
+
+export interface CreateJobRequest {
+  repo: string;
+  prompt: string;
+  profile?: RepoProfile;
+  issue?: string;
+  qa?: QaMode;
+  source?: JobSource;
+  requestedBy?: string;
+  metadata?: Record<string, JsonValue>;
+}
+
+export interface Artifact {
+  contentType?: string;
+  createdAt: string;
+  kind: "log" | "screenshot" | "trace" | "video" | "transcript" | "other";
+  name: string;
+  size?: number;
+  url?: string;
+}
+
+export interface ApprovalRequest {
+  createdAt: string;
+  description: string;
+  stepId: string;
+}
+
+export interface JobEvent {
+  at: string;
+  data?: JsonValue;
+  id: string;
+  level: "debug" | "info" | "warn" | "error";
+  message: string;
+  type:
+    | "accepted"
+    | "artifact"
+    | "approval"
+    | "command"
+    | "dispatch"
+    | "job"
+    | "qa"
+    | "repo"
+    | "worker";
+}
+
+export interface Job {
+  approvals: ApprovalRequest[];
+  artifacts: Artifact[];
+  branch: string;
+  createdAt: string;
+  events: JobEvent[];
+  id: string;
+  issue?: string;
+  metadata: Record<string, JsonValue>;
+  profile: RepoProfile;
+  prompt: string;
+  qa: QaMode;
+  repo: string;
+  requestedBy?: string;
+  source: JobSource;
+  status: JobStatus;
+  updatedAt: string;
+}
+
+export type ValidationResult<T> =
+  | { ok: true; value: T }
+  | { ok: false; error: string };
+
+export function validateCreateJobRequest(
+  input: unknown
+): ValidationResult<CreateJobRequest> {
+  if (!isRecord(input)) {
+    return { ok: false, error: "Expected a JSON object." };
+  }
+
+  const repo = readString(input, "repo");
+  if (!repo || !isGitHubUrl(repo)) {
+    return {
+      ok: false,
+      error: "repo must be an HTTPS or SSH GitHub repository URL."
+    };
+  }
+
+  const prompt = readString(input, "prompt");
+  if (!prompt || prompt.trim().length < 3) {
+    return { ok: false, error: "prompt must be at least 3 characters." };
+  }
+
+  const qa = normalizeQaMode(input.qa);
+  const source = normalizeJobSource(input.source);
+  const profile = readOptionalString(input, "profile");
+  const issue = readOptionalString(input, "issue");
+  const requestedBy = readOptionalString(input, "requestedBy");
+  const metadata = normalizeMetadata(input.metadata);
+
+  return {
+    ok: true,
+    value: {
+      repo: repo.trim(),
+      prompt: prompt.trim(),
+      ...(profile ? { profile } : {}),
+      ...(issue ? { issue } : {}),
+      qa,
+      source,
+      ...(requestedBy ? { requestedBy } : {}),
+      metadata
+    }
+  };
+}
+
+export function createJobEvent(
+  type: JobEvent["type"],
+  level: JobEvent["level"],
+  message: string,
+  data?: JsonValue
+): JobEvent {
+  return {
+    at: new Date().toISOString(),
+    id: createId("evt"),
+    level,
+    message,
+    type,
+    ...(data === undefined ? {} : { data })
+  };
+}
+
+export function createId(prefix = "job"): string {
+  const cryptoSource = globalThis.crypto;
+  if (cryptoSource?.randomUUID) {
+    return `${prefix}_${cryptoSource.randomUUID()}`;
+  }
+
+  const bytes = new Uint8Array(16);
+  cryptoSource?.getRandomValues(bytes);
+  const fallback = Array.from(bytes, (byte) =>
+    byte.toString(16).padStart(2, "0")
+  ).join("");
+  return `${prefix}_${fallback}`;
+}
+
+export function isGitHubUrl(value: string): boolean {
+  const trimmed = value.trim();
+  return (
+    /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+(?:\.git)?$/u.test(trimmed) ||
+    /^git@github\.com:[^/\s]+\/[^/\s]+(?:\.git)?$/u.test(trimmed)
+  );
+}
+
+export function normalizeQaMode(input: unknown): QaMode {
+  if (typeof input === "string" && qaModes.includes(input as QaMode)) {
+    return input as QaMode;
+  }
+  return "none";
+}
+
+export function normalizeJobSource(input: unknown): JobSource {
+  if (typeof input === "string" && jobSources.includes(input as JobSource)) {
+    return input as JobSource;
+  }
+  return "api";
+}
+
+export function isRecord(input: unknown): input is Record<string, unknown> {
+  return typeof input === "object" && input !== null && !Array.isArray(input);
+}
+
+function readString(
+  input: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = input[key];
+  return typeof value === "string" ? value : undefined;
+}
+
+function readOptionalString(
+  input: Record<string, unknown>,
+  key: string
+): string | undefined {
+  const value = readString(input, key)?.trim();
+  return value ? value : undefined;
+}
+
+function normalizeMetadata(input: unknown): Record<string, JsonValue> {
+  if (!isRecord(input)) {
+    return {};
+  }
+
+  const output: Record<string, JsonValue> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (isJsonValue(value)) {
+      output[key] = value;
+    }
+  }
+  return output;
+}
+
+function isJsonValue(input: unknown): input is JsonValue {
+  if (
+    input === null ||
+    typeof input === "string" ||
+    typeof input === "number" ||
+    typeof input === "boolean"
+  ) {
+    return true;
+  }
+
+  if (Array.isArray(input)) {
+    return input.every(isJsonValue);
+  }
+
+  if (isRecord(input)) {
+    return Object.values(input).every(isJsonValue);
+  }
+
+  return false;
+}

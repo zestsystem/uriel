@@ -1,0 +1,60 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "uriel-control-plane",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-06-20",
+  "compatibility_flags": ["nodejs_compat"],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  },
+  "vars": {
+    "URIEL_DEFAULT_REPO": "https://github.com/zestsystem/uriel.git"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "JOB_COORDINATOR",
+        "class_name": "JobCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["JobCoordinator"]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "ARTIFACTS",
+      "bucket_name": "uriel-artifacts"
+    }
+  ],
+  "env": {
+    "staging": {
+      "name": "uriel-control-plane-staging",
+      "vars": {
+        "URIEL_DEFAULT_REPO": "https://github.com/zestsystem/uriel.git"
+      },
+      "r2_buckets": [
+        {
+          "binding": "ARTIFACTS",
+          "bucket_name": "uriel-artifacts-staging"
+        }
+      ]
+    },
+    "production": {
+      "name": "uriel-control-plane",
+      "vars": {
+        "URIEL_DEFAULT_REPO": "https://github.com/zestsystem/uriel.git"
+      },
+      "r2_buckets": [
+        {
+          "binding": "ARTIFACTS",
+          "bucket_name": "uriel-artifacts"
+        }
+      ]
+    }
+  }
+}

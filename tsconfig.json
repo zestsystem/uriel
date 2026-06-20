@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "lib": ["ES2022", "DOM", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "noEmit": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "target": "ES2022",
+    "types": ["node", "vitest/globals", "@cloudflare/workers-types"]
+  },
+  "include": [
+    "apps/**/*.ts",
+    "packages/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
+}

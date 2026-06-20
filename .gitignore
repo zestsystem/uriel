@@ -1,0 +1,12 @@
+.dev.vars
+.direnv/
+.env
+.env.*
+!.env.example
+.wrangler/
+coverage/
+dist/
+node_modules/
+result
+result-*
+tmp/
