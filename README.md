@@ -1,12 +1,17 @@
 # Uriel
 
-Uriel is a NixOS-first remote coding and QA worker for GitHub-hosted Nix
-flakes. It treats `flake.nix`, `direnv`, and repo-local `justfile`s as the
-source of truth for how a project builds, tests, and runs.
+Uriel is an open-source, organization-agnostic remote coding and QA framework
+for GitHub-hosted Nix projects. It runs as a local-first NixOS worker and
+treats `flake.nix`, `direnv`, and repo-local `justfile`s as the source of truth
+for how a project builds, tests, and runs.
 
 The point is simple: remote coding agents should understand Nix. Uriel supplies
 a reproducible NixOS host, fresh Git worktrees, Nix/direnv-aware command
 execution, Android/browser QA capture, local artifacts, and PR creation.
+
+Uriel core does not assume any company, issue tracker, secret manager, hosted
+coordination service, or chat platform. Those concerns live behind optional
+adapters or outside the worker API.
 
 ## Architecture
 
