@@ -68,7 +68,7 @@ Then set `URIEL_WORKER_DISPATCH_URL` in the Worker to
   services.uriel-worker = {
     enable = true;
     controlPlaneUrl = "https://uriel-control-plane.example.workers.dev";
-    workerTokenFile = "/run/secrets/uriel-worker.env";
+    environmentFiles = [ "/run/secrets/uriel-worker.env" ];
   };
 }
 ```
@@ -80,6 +80,10 @@ URIEL_WORKER_TOKEN=...
 GH_TOKEN=...
 URIEL_ADAPTER_LINEAR_API_KEY=...
 ```
+
+Prefer generating this file with NixOS secret tooling instead of checking
+secrets into Nix expressions. Common choices are `sops-nix` and `agenix`; both
+can place decrypted files under `/run/secrets` at activation/runtime.
 
 ## 4. Android Host Requirements
 
@@ -117,7 +121,6 @@ URIEL_ADAPTER_LINEAR_API_KEY=...
 URIEL_ADAPTER_LINEAR_TEAM_KEY=APP
 URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE="In Progress"
 URIEL_ADAPTER_REPO_BOOTSTRAP=direnv
-URIEL_ADAPTER_SECRETS_PROVIDER=doppler
 ```
 
 Per-job metadata can override these defaults.

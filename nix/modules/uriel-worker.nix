@@ -99,10 +99,14 @@ in
       description = "Cloudflare control plane base URL.";
     };
 
-    workerTokenFile = lib.mkOption {
-      type = lib.types.nullOr lib.types.path;
-      default = null;
-      description = "File containing URIEL_WORKER_TOKEN.";
+    environmentFiles = lib.mkOption {
+      type = lib.types.listOf lib.types.path;
+      default = [ ];
+      description = ''
+        Environment files consumed by systemd before starting the worker.
+        Use this with NixOS-native secret tools such as sops-nix or agenix.
+        Files should contain KEY=VALUE lines such as URIEL_WORKER_TOKEN=...
+      '';
     };
 
     browserUrl = lib.mkOption {
@@ -192,8 +196,8 @@ in
         User = cfg.user;
         WorkingDirectory = cfg.stateDir;
       }
-      // lib.optionalAttrs (cfg.workerTokenFile != null) {
-        EnvironmentFile = cfg.workerTokenFile;
+      // lib.optionalAttrs (cfg.environmentFiles != [ ]) {
+        EnvironmentFile = cfg.environmentFiles;
       };
     };
   };

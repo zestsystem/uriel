@@ -13,7 +13,6 @@ export interface WorkerConfig {
   port: number;
   repoBootstrapAdapter?: string;
   reposDir: string;
-  secretsProviderAdapter?: string;
   stateDir: string;
   workerToken?: string;
   worktreesDir: string;
@@ -36,7 +35,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): WorkerConfig {
     port: Number.parseInt(env.URIEL_WORKER_PORT ?? "8788", 10),
     repoBootstrapAdapter: env.URIEL_ADAPTER_REPO_BOOTSTRAP,
     reposDir: env.URIEL_REPOS_DIR ?? `${stateDir}/repos`,
-    secretsProviderAdapter: env.URIEL_ADAPTER_SECRETS_PROVIDER,
     stateDir,
     workerToken: env.URIEL_WORKER_TOKEN,
     worktreesDir: env.URIEL_WORKTREES_DIR ?? `${stateDir}/worktrees`

@@ -27,8 +27,10 @@ development. Production deployments should configure every relevant secret.
 ## Secrets
 
 Do not put provider secrets in `wrangler.jsonc`, Nix files, or the repository.
-Use Wrangler secrets for the control plane and a NixOS secret mechanism for the
-worker environment file.
+Use Wrangler secrets for the control plane. For the worker, prefer NixOS-native
+secret tooling such as `sops-nix` or `agenix` to materialize environment files
+under `/run/secrets`, then pass those paths through
+`services.uriel-worker.environmentFiles`.
 
 ## Repo Execution
 

@@ -14,8 +14,7 @@ async function main(argv: string[]): Promise<void> {
       issue: valueAfter(rest, "--issue"),
       metadata: compactMetadata({
         issueTracker: valueAfter(rest, "--issue-tracker"),
-        repoBootstrap: valueAfter(rest, "--repo-bootstrap"),
-        secretsProvider: valueAfter(rest, "--secrets-provider")
+        repoBootstrap: valueAfter(rest, "--repo-bootstrap")
       }),
       prompt: requiredValue(rest, "--prompt"),
       profile: valueAfter(rest, "--profile"),

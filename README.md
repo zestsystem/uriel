@@ -67,7 +67,6 @@ pnpm exec tsx apps/cli/src/main.ts submit \
   --prompt "Fix the failing mobile registration test" \
   --issue APP-1234 \
   --issue-tracker linear \
-  --secrets-provider doppler \
   --qa both
 ```
 
@@ -99,7 +98,7 @@ is unavailable.
           services.uriel-worker = {
             enable = true;
             controlPlaneUrl = "https://uriel.example.workers.dev";
-            workerTokenFile = "/run/secrets/uriel-worker-token";
+            environmentFiles = [ "/run/secrets/uriel-worker.env" ];
           };
         }
       ];
@@ -133,9 +132,13 @@ The NixOS worker reads these environment variables when needed:
 - `URIEL_ADAPTER_LINEAR_TEAM_KEY`
 - `URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE`
 - `URIEL_ADAPTER_REPO_BOOTSTRAP`
-- `URIEL_ADAPTER_SECRETS_PROVIDER`
 - `URIEL_BROWSER_URL`
 - `URIEL_ANDROID_AVD`
+
+On NixOS, prefer supplying those values through `services.uriel-worker.environmentFiles`.
+Those files can be produced by Nix-native secret tools such as `sops-nix`,
+`agenix`, or any other mechanism that writes root-readable environment files
+outside the Nix store.
 
 ## Profiles And Adapters
 
@@ -145,7 +148,6 @@ bundle of adapters, not a hardcoded repository identity.
 Adapter dimensions:
 
 - Issue tracker: optional, currently `linear`
-- Secrets provider: optional, currently `doppler`
 - Repo bootstrap: optional, currently `direnv`
 - QA capability: `browser`, `android`, or both
 - Artifact storage: control-plane R2 by default
@@ -160,13 +162,11 @@ urielctl submit \
   --issue APP-1234 \
   --profile acme/mobile \
   --issue-tracker linear \
-  --repo-bootstrap direnv \
-  --secrets-provider doppler
+  --repo-bootstrap direnv
 ```
 
 They can also be configured as worker defaults with
-`URIEL_ADAPTER_ISSUE_TRACKER`, `URIEL_ADAPTER_REPO_BOOTSTRAP`, and
-`URIEL_ADAPTER_SECRETS_PROVIDER`.
+`URIEL_ADAPTER_ISSUE_TRACKER` and `URIEL_ADAPTER_REPO_BOOTSTRAP`.
 
 ## License
 
