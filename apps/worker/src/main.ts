@@ -1,9 +1,18 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createReadStream } from "node:fs";
 import { readFile } from "node:fs/promises";
 
-import type { Job } from "../../../packages/core/src/index.ts";
+import {
+  buildBranchName,
+  createJobEvent,
+  createId,
+  type CreateJobRequest,
+  type Job,
+  validateCreateJobRequest
+} from "../../../packages/core/src/index.ts";
 import { loadConfig, type WorkerConfig } from "./config.ts";
 import { runJob } from "./runner.ts";
+import { LocalJobStore } from "./store.ts";
 
 const queue: { running: Promise<void> } = { running: Promise.resolve() };
 
@@ -32,6 +41,7 @@ async function main(argv: string[]): Promise<void> {
 }
 
 async function serve(config: WorkerConfig): Promise<void> {
+  await new LocalJobStore(config).init();
   const server = createServer((request, response) => {
     void handleRequest(request, response, config);
   });
@@ -53,14 +63,104 @@ async function handleRequest(
       return;
     }
 
+    if (config.workerToken && !authorized(request, config.workerToken)) {
+      writeJson(response, 401, { error: "Unauthorized." });
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/jobs") {
+      const store = new LocalJobStore(config);
+      writeJson(response, 200, await store.listJobs());
+      return;
+    }
+
     if (request.method === "POST" && url.pathname === "/jobs") {
-      if (config.workerToken && !authorized(request, config.workerToken)) {
-        writeJson(response, 401, { error: "Unauthorized." });
+      const input = JSON.parse(await readBody(request, 1024 * 1024)) as unknown;
+      const validation = validateCreateJobRequest(input);
+      if (!validation.ok) {
+        writeJson(response, 400, { error: validation.error });
         return;
       }
-      const job = JSON.parse(await readBody(request, 1024 * 1024)) as Job;
+      const store = new LocalJobStore(config);
+      const job = await store.putJob(createJob(validation.value));
       queue.running = queue.running.then(() => runJob(job, config));
       writeJson(response, 202, { ok: true, jobId: job.id });
+      return;
+    }
+
+    const jobMatch = /^\/jobs\/([^/]+)$/u.exec(url.pathname);
+    if (request.method === "GET" && jobMatch?.[1]) {
+      const job = await new LocalJobStore(config).getJob(decodeURIComponent(jobMatch[1]));
+      if (!job) {
+        writeJson(response, 404, { error: "Job not found." });
+        return;
+      }
+      writeJson(response, 200, job);
+      return;
+    }
+
+    const cancelMatch = /^\/jobs\/([^/]+)\/cancel$/u.exec(url.pathname);
+    if (request.method === "POST" && cancelMatch?.[1]) {
+      const job = await new LocalJobStore(config).setStatus(
+        decodeURIComponent(cancelMatch[1]),
+        "cancelled"
+      );
+      if (!job) {
+        writeJson(response, 404, { error: "Job not found." });
+        return;
+      }
+      writeJson(response, 200, job);
+      return;
+    }
+
+    const approveMatch = /^\/jobs\/([^/]+)\/approve\/([^/]+)$/u.exec(url.pathname);
+    if (request.method === "POST" && approveMatch?.[1] && approveMatch[2]) {
+      const store = new LocalJobStore(config);
+      const jobId = decodeURIComponent(approveMatch[1]);
+      const stepId = decodeURIComponent(approveMatch[2]);
+      const job = await store.getJob(jobId);
+      if (!job) {
+        writeJson(response, 404, { error: "Job not found." });
+        return;
+      }
+      const next = {
+        ...job,
+        approvals: job.approvals.filter((approval) => approval.stepId !== stepId),
+        status: "queued" as const,
+        updatedAt: new Date().toISOString()
+      };
+      await store.putJob(next);
+      await store.appendEvent(jobId, createJobEvent("approval", "info", `Approved step ${stepId}.`));
+      writeJson(response, 200, await store.getJob(jobId));
+      return;
+    }
+
+    const eventsMatch = /^\/jobs\/([^/]+)\/events$/u.exec(url.pathname);
+    if (request.method === "GET" && eventsMatch?.[1]) {
+      const job = await new LocalJobStore(config).getJob(decodeURIComponent(eventsMatch[1]));
+      if (!job) {
+        writeJson(response, 404, { error: "Job not found." });
+        return;
+      }
+      writeJson(response, 200, job.events);
+      return;
+    }
+
+    const artifactMatch = /^\/jobs\/([^/]+)\/artifacts\/(.+)$/u.exec(url.pathname);
+    if (request.method === "GET" && artifactMatch?.[1] && artifactMatch[2]) {
+      const jobId = decodeURIComponent(artifactMatch[1]);
+      const name = decodeURIComponent(artifactMatch[2]);
+      const store = new LocalJobStore(config);
+      const job = await store.getJob(jobId);
+      const artifact = job?.artifacts.find((candidate) => candidate.name === name);
+      if (!artifact?.url) {
+        writeJson(response, 404, { error: "Artifact not found." });
+        return;
+      }
+      response.writeHead(200, {
+        "content-type": artifact.contentType ?? "application/octet-stream"
+      });
+      createReadStream(artifact.url).pipe(response);
       return;
     }
 
@@ -70,6 +170,28 @@ async function handleRequest(
       error: error instanceof Error ? error.message : String(error)
     });
   }
+}
+
+function createJob(request: CreateJobRequest): Job {
+  const now = new Date().toISOString();
+  return {
+    approvals: [],
+    artifacts: [],
+    branch: buildBranchName(request),
+    createdAt: now,
+    events: [],
+    id: createId("job"),
+    issue: request.issue,
+    metadata: request.metadata ?? {},
+    profile: request.profile ?? "generic",
+    prompt: request.prompt,
+    qa: request.qa ?? "none",
+    repo: request.repo,
+    requestedBy: request.requestedBy,
+    source: request.source ?? "api",
+    status: "queued",
+    updatedAt: now
+  };
 }
 
 function authorized(request: IncomingMessage, expected: string): boolean {

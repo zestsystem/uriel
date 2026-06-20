@@ -10,8 +10,9 @@
 
   services.uriel-worker = {
     enable = true;
-    controlPlaneUrl = "https://uriel-control-plane.example.workers.dev";
-    workerTokenFile = "/run/secrets/uriel-worker.env";
+    environmentFiles = [
+      "/run/secrets/uriel-worker.env"
+    ];
 
     # Optional QA knobs.
     browserUrl = "http://127.0.0.1:3000";
@@ -22,7 +23,6 @@
       URIEL_ADAPTER_LINEAR_TEAM_KEY = "APP";
       URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE = "In Progress";
       URIEL_ADAPTER_REPO_BOOTSTRAP = "direnv";
-      URIEL_ADAPTER_SECRETS_PROVIDER = "doppler";
     };
   };
 }

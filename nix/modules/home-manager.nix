@@ -34,7 +34,6 @@ in
       [
         cfg.package
         self.packages.${pkgs.system}.uriel-worker
-        cloudflared
         direnv
         ffmpeg
         gh

@@ -4,21 +4,16 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@9.15.4",
-  "description": "A NixOS-first remote coding and QA agent with a Cloudflare control plane.",
+  "description": "A NixOS-first remote coding and QA agent for any GitHub-hosted Nix flake.",
   "scripts": {
     "build": "tsc --noEmit",
     "check": "pnpm build && pnpm test",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "worker:dev": "pnpm --dir apps/control-plane dev",
-    "worker:deploy": "pnpm --dir apps/control-plane deploy",
-    "worker:types": "pnpm --dir apps/control-plane types"
+    "test:watch": "vitest"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "latest",
     "@types/node": "^22.15.32",
     "typescript": "^5.8.3",
-    "vitest": "^3.2.4",
-    "wrangler": "latest"
+    "vitest": "^3.2.4"
   }
 }
