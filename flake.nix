@@ -1,5 +1,5 @@
 {
-  description = "Uriel remote NixOS coding and QA agent";
+  description = "Uriel local-first NixOS coding and QA worker";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
@@ -110,7 +110,6 @@
               jq
               just
               nixfmt
-              cloudflared
             ];
           };
         }

@@ -11,12 +11,12 @@ import { ensureLinearIssue } from "./linear.ts";
 import { runQa } from "./qa.ts";
 import { JobReporter } from "./reporter.ts";
 import { commandExists, exists, runChecked, runCommand } from "./shell.ts";
+import { LocalJobStore } from "./store.ts";
 
 export async function runJob(job: Job, config: WorkerConfig): Promise<void> {
   const reporter = new JobReporter({
-    controlPlaneUrl: config.controlPlaneUrl,
     jobId: job.id,
-    token: config.workerToken
+    store: new LocalJobStore(config)
   });
   const artifactsDir = join(config.artifactsDir, job.id);
 
@@ -140,8 +140,6 @@ async function runProfileSetup(
 ): Promise<void> {
   const issueTracker = metadataString(job, "issueTracker") ?? config.issueTrackerAdapter;
   const repoBootstrap = metadataString(job, "repoBootstrap") ?? config.repoBootstrapAdapter;
-  const secretsProvider =
-    metadataString(job, "secretsProvider") ?? config.secretsProviderAdapter;
 
   if (issueTracker === "linear") {
     const issue = await ensureLinearIssue(job, {
@@ -160,30 +158,12 @@ async function runProfileSetup(
     }
   }
 
-  if (repoBootstrap === "direnv" || secretsProvider === "doppler") {
+  if (repoBootstrap === "direnv") {
     if (await commandExists("direnv")) {
       await reporter.event("repo", "info", "Allowing direnv for repository bootstrap.");
       await runCommand("direnv", ["allow"], { cwd: worktree, timeoutMs: 60_000 });
     } else {
       await reporter.event("repo", "warn", "direnv is missing; skipping direnv bootstrap.");
-    }
-  }
-
-  if (secretsProvider === "doppler") {
-    if (await commandExists("direnv")) {
-      await reporter.event("repo", "info", "Running Doppler secrets adapter setup.");
-      const result = await runCommand(
-        "direnv",
-        ["exec", ".", "doppler", "setup", "--no-interactive"],
-        { cwd: worktree, timeoutMs: 120_000 }
-      );
-      if (result.code !== 0) {
-        await reporter.event("repo", "warn", "Doppler secrets adapter setup failed.", {
-          stderr: result.stderr.slice(-4000)
-        });
-      }
-    } else {
-      await reporter.event("repo", "warn", "direnv is missing; skipping Doppler setup.");
     }
   }
 }
@@ -317,7 +297,7 @@ function buildPullRequestBody(job: Job): string {
     `QA requested: ${job.qa}`,
     job.issue ? `Issue: ${job.issue}` : undefined,
     "",
-    "Evidence artifacts are attached to the Uriel control plane job when configured."
+    "Evidence artifacts are stored in the Uriel worker artifact directory."
   ]
     .filter(Boolean)
     .join("\n");

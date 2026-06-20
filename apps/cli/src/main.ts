@@ -2,7 +2,7 @@ import { validateCreateJobRequest, type QaMode } from "../../../packages/core/sr
 
 interface CliConfig {
   token?: string;
-  url: string;
+  workerUrl: string;
 }
 
 async function main(argv: string[]): Promise<void> {
@@ -14,8 +14,7 @@ async function main(argv: string[]): Promise<void> {
       issue: valueAfter(rest, "--issue"),
       metadata: compactMetadata({
         issueTracker: valueAfter(rest, "--issue-tracker"),
-        repoBootstrap: valueAfter(rest, "--repo-bootstrap"),
-        secretsProvider: valueAfter(rest, "--secrets-provider")
+        repoBootstrap: valueAfter(rest, "--repo-bootstrap")
       }),
       prompt: requiredValue(rest, "--prompt"),
       profile: valueAfter(rest, "--profile"),
@@ -27,7 +26,7 @@ async function main(argv: string[]): Promise<void> {
     if (!validation.ok) {
       throw new Error(validation.error);
     }
-    const response = await apiFetch(config, "/api/jobs", {
+    const response = await apiFetch(config, "/jobs", {
       body: JSON.stringify(validation.value),
       method: "POST"
     });
@@ -40,7 +39,7 @@ async function main(argv: string[]): Promise<void> {
     if (!jobId) {
       throw new Error("urielctl status requires <job-id>.");
     }
-    const response = await apiFetch(config, `/api/jobs/${encodeURIComponent(jobId)}`);
+    const response = await apiFetch(config, `/jobs/${encodeURIComponent(jobId)}`);
     console.log(JSON.stringify(await response.json(), null, 2));
     return;
   }
@@ -52,7 +51,7 @@ async function main(argv: string[]): Promise<void> {
     }
     const response = await apiFetch(
       config,
-      `/api/jobs/${encodeURIComponent(jobId)}/approve/${encodeURIComponent(stepId)}`,
+      `/jobs/${encodeURIComponent(jobId)}/approve/${encodeURIComponent(stepId)}`,
       { method: "POST" }
     );
     console.log(JSON.stringify(await response.json(), null, 2));
@@ -66,7 +65,7 @@ async function main(argv: string[]): Promise<void> {
     }
     const response = await apiFetch(
       config,
-      `/api/jobs/${encodeURIComponent(jobId)}/cancel`,
+      `/jobs/${encodeURIComponent(jobId)}/cancel`,
       { method: "POST" }
     );
     console.log(JSON.stringify(await response.json(), null, 2));
@@ -80,8 +79,8 @@ async function main(argv: string[]): Promise<void> {
   urielctl cancel <job-id>
 
 Environment:
-  URIEL_CONTROL_PLANE_URL=https://uriel.example.workers.dev
-  URIEL_API_TOKEN=...`);
+  URIEL_WORKER_URL=http://127.0.0.1:8788
+  URIEL_WORKER_TOKEN=...`);
 }
 
 async function apiFetch(
@@ -89,7 +88,7 @@ async function apiFetch(
   path: string,
   init: RequestInit = {}
 ): Promise<Response> {
-  const response = await fetch(new URL(path, config.url), {
+  const response = await fetch(new URL(path, config.workerUrl), {
     ...init,
     headers: {
       "content-type": "application/json",
@@ -106,15 +105,13 @@ async function apiFetch(
 
 function loadConfig(args: string[]): CliConfig {
   const url =
-    valueAfter(args, "--control-plane") ?? process.env.URIEL_CONTROL_PLANE_URL;
+    valueAfter(args, "--worker-url") ?? process.env.URIEL_WORKER_URL ?? "http://127.0.0.1:8788";
   if (!url) {
-    throw new Error(
-      "Set URIEL_CONTROL_PLANE_URL or pass --control-plane <url>."
-    );
+    throw new Error("Set URIEL_WORKER_URL or pass --worker-url <url>.");
   }
   return {
-    token: valueAfter(args, "--token") ?? process.env.URIEL_API_TOKEN,
-    url
+    token: valueAfter(args, "--token") ?? process.env.URIEL_WORKER_TOKEN,
+    workerUrl: url
   };
 }
 

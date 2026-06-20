@@ -14,7 +14,7 @@
     "skipLibCheck": true,
     "strict": true,
     "target": "ES2022",
-    "types": ["node", "vitest/globals", "@cloudflare/workers-types"]
+    "types": ["node", "vitest/globals"]
   },
   "include": [
     "apps/**/*.ts",

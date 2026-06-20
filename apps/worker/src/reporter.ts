@@ -1,20 +1,27 @@
-import { createJobEvent, type JobEvent, type JobStatus, type JsonValue } from "../../../packages/core/src/index.ts";
+import { mkdir, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+
+import {
+  createJobEvent,
+  type Artifact,
+  type JobEvent,
+  type JobStatus,
+  type JsonValue
+} from "../../../packages/core/src/index.ts";
+import type { LocalJobStore } from "./store.ts";
 
 export interface ReporterOptions {
-  controlPlaneUrl?: string;
   jobId: string;
-  token?: string;
+  store: LocalJobStore;
 }
 
 export class JobReporter {
-  private readonly controlPlaneUrl?: string;
   private readonly jobId: string;
-  private readonly token?: string;
+  private readonly store: LocalJobStore;
 
   constructor(options: ReporterOptions) {
-    this.controlPlaneUrl = options.controlPlaneUrl;
     this.jobId = options.jobId;
-    this.token = options.token;
+    this.store = options.store;
   }
 
   async event(
@@ -25,13 +32,11 @@ export class JobReporter {
   ): Promise<void> {
     const event = createJobEvent(type, level, message, data);
     console.log(JSON.stringify(event));
-    await this.post(`/api/jobs/${encodeURIComponent(this.jobId)}/events`, event);
+    await this.store.appendEvent(this.jobId, event);
   }
 
   async status(status: JobStatus): Promise<void> {
-    await this.post(`/api/jobs/${encodeURIComponent(this.jobId)}/status`, {
-      status
-    });
+    await this.store.setStatus(this.jobId, status);
   }
 
   async uploadArtifact(
@@ -39,56 +44,40 @@ export class JobReporter {
     body: Blob | Buffer | string,
     contentType: string
   ): Promise<void> {
-    if (!this.controlPlaneUrl) {
-      return;
-    }
-    const url = new URL(
-      `/api/jobs/${encodeURIComponent(this.jobId)}/artifacts/${encodeURIComponent(name)}`,
-      this.controlPlaneUrl
-    );
-    const response = await fetch(url, {
-      body: toFetchBody(body),
-      headers: {
-        "content-type": contentType,
-        ...(this.token ? { authorization: `Bearer ${this.token}` } : {})
-      },
-      method: "PUT"
-    });
-    if (!response.ok) {
-      await this.event(
-        "artifact",
-        "warn",
-        `Artifact upload failed for ${name} with HTTP ${response.status}.`
-      );
-    }
-  }
-
-  private async post(path: string, body: unknown): Promise<void> {
-    if (!this.controlPlaneUrl) {
-      return;
-    }
-    const response = await fetch(new URL(path, this.controlPlaneUrl), {
-      body: JSON.stringify(body),
-      headers: {
-        "content-type": "application/json",
-        ...(this.token ? { authorization: `Bearer ${this.token}` } : {})
-      },
-      method: "POST"
-    });
-    if (!response.ok) {
-      console.error(
-        `Failed to post ${path} to control plane: HTTP ${response.status}`
-      );
-    }
+    const artifactPath = join(this.store.artifactsDir, this.jobId, name);
+    await mkdir(dirname(artifactPath), { recursive: true });
+    await writeFile(artifactPath, toWritableBody(body));
+    const artifact: Artifact = {
+      contentType,
+      createdAt: new Date().toISOString(),
+      kind: artifactKind(name),
+      name,
+      url: artifactPath
+    };
+    await this.store.addArtifact(this.jobId, artifact);
   }
 }
 
-function toFetchBody(body: Blob | Buffer | string): BodyInit {
-  if (typeof body === "string" || body instanceof Blob) {
+function toWritableBody(body: Blob | Buffer | string): Buffer | string {
+  if (typeof body === "string" || Buffer.isBuffer(body)) {
     return body;
   }
 
-  const copy = new ArrayBuffer(body.byteLength);
-  new Uint8Array(copy).set(body);
-  return copy;
+  throw new Error("Blob artifact bodies are not supported in the local worker.");
+}
+
+function artifactKind(name: string): Artifact["kind"] {
+  if (/\.(png|jpg|jpeg|webp)$/iu.test(name)) {
+    return "screenshot";
+  }
+  if (/\.(mp4|webm|mov)$/iu.test(name)) {
+    return "video";
+  }
+  if (/\.(zip|trace)$/iu.test(name)) {
+    return "trace";
+  }
+  if (/\.(jsonl?|txt|log)$/iu.test(name)) {
+    return "log";
+  }
+  return "other";
 }
