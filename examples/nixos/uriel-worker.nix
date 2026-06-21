@@ -11,7 +11,7 @@
 
   services.uriel-worker = {
     enable = true;
-    allowedRepos = [ "zestsystem/uriel" ];
+    allowedRepos = [ "uriel-agent/uriel" ];
     maxConcurrentJobs = 1;
     artifactRetentionDays = 14;
     environmentFiles = [

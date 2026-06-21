@@ -10,7 +10,7 @@ QA evidence on the NixOS host.
 {
   services.uriel-worker = {
     enable = true;
-    allowedRepos = [ "zestsystem/uriel" ];
+    allowedRepos = [ "uriel-agent/uriel" ];
     maxConcurrentJobs = 1;
     artifactRetentionDays = 14;
     environmentFiles = [
@@ -56,8 +56,8 @@ From the host or a trusted network path:
 export URIEL_WORKER_URL=http://127.0.0.1:8788
 export URIEL_WORKER_TOKEN=...
 
-nix run github:zestsystem/uriel#urielctl -- submit \
-  --repo https://github.com/zestsystem/uriel.git \
+nix run github:uriel-agent/uriel#urielctl -- submit \
+  --repo https://github.com/uriel-agent/uriel.git \
   --prompt "Run a smoke test and report status" \
   --qa browser
 ```
