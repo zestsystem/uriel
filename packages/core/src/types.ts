@@ -11,15 +11,7 @@ export const jobStatuses = [
 ] as const;
 export type JobStatus = (typeof jobStatuses)[number];
 
-export const jobSources = [
-  "api",
-  "discord",
-  "github",
-  "linear",
-  "slack",
-  "twilio"
-] as const;
-export type JobSource = (typeof jobSources)[number];
+export type JobSource = string;
 
 export type RepoProfile = string;
 
@@ -184,8 +176,11 @@ export function normalizeQaMode(input: unknown): QaMode {
 }
 
 export function normalizeJobSource(input: unknown): JobSource {
-  if (typeof input === "string" && jobSources.includes(input as JobSource)) {
-    return input as JobSource;
+  if (typeof input === "string") {
+    const source = input.trim();
+    if (/^[a-z0-9][a-z0-9._/-]{0,79}$/iu.test(source)) {
+      return source;
+    }
   }
   return "api";
 }

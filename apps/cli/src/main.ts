@@ -73,7 +73,7 @@ async function main(argv: string[]): Promise<void> {
   }
 
   console.log(`Usage:
-  urielctl submit --repo <github-url> --prompt <text> [--issue ISSUE-123] [--profile <id>] [--qa browser|android|both]
+  urielctl submit --repo <github-url> --prompt <text> [--issue ISSUE-123] [--profile <id>] [--issue-tracker <adapter>] [--repo-bootstrap <adapter>] [--qa browser|android|both]
   urielctl status <job-id>
   urielctl approve <job-id> <step-id>
   urielctl cancel <job-id>

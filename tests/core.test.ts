@@ -47,6 +47,18 @@ describe("job validation", () => {
     expect(result.ok).toBe(true);
   });
 
+  it("accepts adopter-defined job sources", () => {
+    const result = validateCreateJobRequest({
+      prompt: "Build the thing",
+      repo: "https://github.com/zestsystem/uriel.git",
+      source: "acme/chatops"
+    });
+    expect(result.ok).toBe(true);
+    if (result.ok) {
+      expect(result.value.source).toBe("acme/chatops");
+    }
+  });
+
   it("rejects non-GitHub repos", () => {
     const result = validateCreateJobRequest({
       prompt: "Build the thing",

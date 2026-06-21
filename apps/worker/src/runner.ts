@@ -143,17 +143,17 @@ async function runProfileSetup(
 
   if (issueTracker === "linear") {
     const issue = await ensureLinearIssue(job, {
-      apiKey: config.linearApiKey,
-      inProgressState: config.linearInProgressState,
-      teamKey: config.linearTeamKey
+      apiKey: config.issueTrackerApiKey,
+      inProgressState: config.issueTrackerInProgressState,
+      teamKey: config.issueTrackerTeamKey
     });
     if (issue) {
-      await reporter.event("repo", "info", `Using Linear issue ${issue}.`);
+      await reporter.event("repo", "info", `Using issue tracker issue ${issue}.`);
     } else {
       await reporter.event(
         "repo",
         "warn",
-        "Linear issue adapter is enabled but no issue was available or created; configure URIEL_ADAPTER_LINEAR_API_KEY and URIEL_ADAPTER_LINEAR_TEAM_KEY to allow creation."
+        "Issue tracker adapter is enabled but no issue was available or created; configure URIEL_ADAPTER_ISSUE_TRACKER_API_KEY and URIEL_ADAPTER_ISSUE_TRACKER_TEAM_KEY to allow creation."
       );
     }
   }

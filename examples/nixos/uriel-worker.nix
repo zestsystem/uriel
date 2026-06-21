@@ -19,9 +19,6 @@
     androidAvd = "uriel-api-35";
 
     extraEnvironment = {
-      URIEL_ADAPTER_ISSUE_TRACKER = "linear";
-      URIEL_ADAPTER_LINEAR_TEAM_KEY = "APP";
-      URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE = "In Progress";
       URIEL_ADAPTER_REPO_BOOTSTRAP = "direnv";
     };
   };

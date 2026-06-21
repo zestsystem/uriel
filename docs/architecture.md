@@ -49,8 +49,8 @@ Core orchestration is local HTTP:
 - `GET /jobs/:id/artifacts/:name`
 
 External orchestration should be an adapter outside core. Hermes, OpenCode,
-Discord bots, Linear webhooks, Slack bots, Tailscale, or a reverse proxy can
-all call the worker API without changing Uriel's NixOS execution model.
+chat bots, issue tracker webhooks, Tailscale, or a reverse proxy can all call
+the worker API without changing Uriel's NixOS execution model.
 
 ## Profiles And Adapters
 
