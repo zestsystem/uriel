@@ -2,22 +2,32 @@ import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 import {
+  parseJustRecipes,
   repoCacheKey,
   type Job,
   worktreeSlug
 } from "../../../packages/core/src/index.ts";
 import type { WorkerConfig } from "./config.ts";
+import { EvidenceRecorder } from "./evidence.ts";
 import { ensureLinearIssue } from "./linear.ts";
 import { runQa } from "./qa.ts";
 import { JobReporter } from "./reporter.ts";
-import { commandExists, exists, runChecked, runCommand } from "./shell.ts";
+import {
+  commandExists,
+  exists,
+  runCommand,
+  type CommandResult,
+  type RunCommandOptions
+} from "./shell.ts";
 import { LocalJobStore } from "./store.ts";
 
 export async function runJob(job: Job, config: WorkerConfig): Promise<void> {
+  const store = new LocalJobStore(config);
   const reporter = new JobReporter({
     jobId: job.id,
-    store: new LocalJobStore(config)
+    store
   });
+  const evidence = new EvidenceRecorder();
   const artifactsDir = join(config.artifactsDir, job.id);
 
   try {
@@ -25,17 +35,22 @@ export async function runJob(job: Job, config: WorkerConfig): Promise<void> {
     await reporter.status("running");
     await reporter.event("job", "info", `Starting job ${job.id}.`);
 
-    const worktree = await prepareWorktree(job, config, reporter);
-    await inspectRepository(worktree, artifactsDir, reporter);
-    await runProfileSetup(job, config, worktree, reporter);
-    await runOpenCode(job, config, worktree, artifactsDir, reporter);
-    await runQa(job, config, artifactsDir, reporter);
-    await finalizePullRequest(job, worktree, artifactsDir, reporter);
+    const worktree = await prepareWorktree(job, config, reporter, evidence);
+    await inspectRepository(worktree, artifactsDir, reporter, evidence);
+    await runProfileSetup(job, config, worktree, reporter, evidence);
+    await runOpenCode(job, config, worktree, artifactsDir, reporter, evidence);
+    const qaSummaries = await runQa(job, config, artifactsDir, reporter, evidence);
+    for (const summary of qaSummaries) {
+      evidence.recordQaSummary(summary);
+    }
+    await finalizePullRequest(job, worktree, artifactsDir, reporter, evidence);
 
     await reporter.status("completed");
+    await writeEvidenceManifest(evidence, job, store, reporter, "Job completed.");
     await reporter.event("job", "info", "Job completed.");
   } catch (error) {
     await reporter.status("failed");
+    await writeEvidenceManifest(evidence, job, store, reporter, errorMessage(error));
     await reporter.event("job", "error", errorMessage(error));
     throw error;
   }
@@ -44,7 +59,8 @@ export async function runJob(job: Job, config: WorkerConfig): Promise<void> {
 async function prepareWorktree(
   job: Job,
   config: WorkerConfig,
-  reporter: JobReporter
+  reporter: JobReporter,
+  evidence: EvidenceRecorder
 ): Promise<string> {
   await mkdir(config.reposDir, { recursive: true });
   await mkdir(config.worktreesDir, { recursive: true });
@@ -62,15 +78,18 @@ async function prepareWorktree(
     await reporter.event("repo", "info", "Fetching latest origin/main.", {
       cacheDir
     });
-    await runChecked("git", ["-C", cacheDir, "fetch", "origin", "main", "--prune"], {
-      timeoutMs: 120_000
-    });
+    await runObservedChecked(
+      evidence,
+      "git",
+      ["-C", cacheDir, "fetch", "origin", "main", "--prune"],
+      { timeoutMs: 120_000 }
+    );
   } else {
     await reporter.event("repo", "info", "Cloning bare repository cache.", {
       repo: job.repo,
       cacheDir
     });
-    await runChecked("git", ["clone", "--bare", job.repo, cacheDir], {
+    await runObservedChecked(evidence, "git", ["clone", "--bare", job.repo, cacheDir], {
       timeoutMs: 300_000
     });
   }
@@ -78,7 +97,8 @@ async function prepareWorktree(
   await reporter.event("repo", "info", `Creating worktree ${job.branch}.`, {
     worktree
   });
-  await runChecked(
+  await runObservedChecked(
+    evidence,
     "git",
     ["-C", cacheDir, "worktree", "add", "-B", job.branch, worktree, "origin/main"],
     { timeoutMs: 120_000 }
@@ -89,19 +109,23 @@ async function prepareWorktree(
 async function inspectRepository(
   worktree: string,
   artifactsDir: string,
-  reporter: JobReporter
+  reporter: JobReporter,
+  evidence: EvidenceRecorder
 ): Promise<void> {
   const agentInstructions = join(worktree, "AGENTS.md");
   if (await exists(agentInstructions)) {
     const content = await readFile(agentInstructions, "utf8");
     await writeFile(join(artifactsDir, "AGENTS.md"), content);
     await reporter.uploadArtifact("AGENTS.md", content, "text/markdown");
+    evidence.recordAgentsFile("AGENTS.md");
     await reporter.event("repo", "info", "Loaded AGENTS.md instructions.");
   }
 
   if (await exists(join(worktree, "flake.nix"))) {
+    evidence.recordFlake();
     await reporter.event("repo", "info", "Evaluating Nix flake outputs.");
-    const result = await runCommand(
+    const result = await runObservedCommand(
+      evidence,
       "nix",
       ["flake", "show", "--json", "--no-write-lock-file"],
       { cwd: worktree, timeoutMs: 180_000 }
@@ -123,10 +147,11 @@ async function inspectRepository(
   }
 
   if (await exists(join(worktree, "justfile")) || await exists(join(worktree, "Justfile"))) {
-    const result = await runCommand("just", ["--list"], {
+    const result = await runObservedCommand(evidence, "just", ["--list"], {
       cwd: worktree,
       timeoutMs: 60_000
     });
+    evidence.recordJustfile(parseJustRecipes(result.stdout));
     await writeFile(join(artifactsDir, "just-list.txt"), result.stdout + result.stderr);
     await reporter.uploadArtifact("just-list.txt", result.stdout + result.stderr, "text/plain");
   }
@@ -136,7 +161,8 @@ async function runProfileSetup(
   job: Job,
   config: WorkerConfig,
   worktree: string,
-  reporter: JobReporter
+  reporter: JobReporter,
+  evidence: EvidenceRecorder
 ): Promise<void> {
   const issueTracker = metadataString(job, "issueTracker") ?? config.issueTrackerAdapter;
   const repoBootstrap = metadataString(job, "repoBootstrap") ?? config.repoBootstrapAdapter;
@@ -161,7 +187,7 @@ async function runProfileSetup(
   if (repoBootstrap === "direnv") {
     if (await commandExists("direnv")) {
       await reporter.event("repo", "info", "Allowing direnv for repository bootstrap.");
-      await runCommand("direnv", ["allow"], { cwd: worktree, timeoutMs: 60_000 });
+      await runObservedCommand(evidence, "direnv", ["allow"], { cwd: worktree, timeoutMs: 60_000 });
     } else {
       await reporter.event("repo", "warn", "direnv is missing; skipping direnv bootstrap.");
     }
@@ -173,7 +199,8 @@ async function runOpenCode(
   config: WorkerConfig,
   worktree: string,
   artifactsDir: string,
-  reporter: JobReporter
+  reporter: JobReporter,
+  evidence: EvidenceRecorder
 ): Promise<void> {
   const transcriptPath = join(artifactsDir, "opencode-transcript.jsonl");
 
@@ -203,7 +230,7 @@ async function runOpenCode(
     ...(config.opencodeModel ? ["--model", config.opencodeModel] : []),
     buildPrompt(job)
   ];
-  const result = await runCommand("opencode", args, {
+  const result = await runObservedCommand(evidence, "opencode", args, {
     cwd: worktree,
     timeoutMs: 45 * 60_000
   });
@@ -222,9 +249,10 @@ async function finalizePullRequest(
   job: Job,
   worktree: string,
   artifactsDir: string,
-  reporter: JobReporter
+  reporter: JobReporter,
+  evidence: EvidenceRecorder
 ): Promise<void> {
-  const status = await runChecked("git", ["status", "--porcelain"], {
+  const status = await runObservedChecked(evidence, "git", ["status", "--porcelain"], {
     cwd: worktree
   });
   if (!status.stdout.trim()) {
@@ -232,13 +260,14 @@ async function finalizePullRequest(
     return;
   }
 
-  await runChecked("git", ["add", "-A"], { cwd: worktree });
-  await runChecked(
+  await runObservedChecked(evidence, "git", ["add", "-A"], { cwd: worktree });
+  await runObservedChecked(
+    evidence,
     "git",
     ["commit", "-m", summarizeCommit(job.prompt)],
     { cwd: worktree, timeoutMs: 120_000 }
   );
-  await runChecked("git", ["push", "-u", "origin", job.branch], {
+  await runObservedChecked(evidence, "git", ["push", "-u", "origin", job.branch], {
     cwd: worktree,
     timeoutMs: 300_000
   });
@@ -251,7 +280,8 @@ async function finalizePullRequest(
   const prBody = buildPullRequestBody(job);
   const bodyPath = join(artifactsDir, "pull-request-body.md");
   await writeFile(bodyPath, prBody);
-  const pr = await runCommand(
+  const pr = await runObservedCommand(
+    evidence,
     "gh",
     [
       "pr",
@@ -270,9 +300,51 @@ async function finalizePullRequest(
     });
     return;
   }
+  evidence.recordPullRequest(pr.stdout.trim());
   await reporter.event("repo", "info", "Draft PR created.", {
     url: pr.stdout.trim()
   });
+}
+
+async function runObservedCommand(
+  evidence: EvidenceRecorder,
+  command: string,
+  args: string[],
+  options: RunCommandOptions = {}
+): Promise<CommandResult> {
+  const result = await runCommand(command, args, options);
+  evidence.recordCommand(command, args, result, options);
+  return result;
+}
+
+async function runObservedChecked(
+  evidence: EvidenceRecorder,
+  command: string,
+  args: string[],
+  options: RunCommandOptions = {}
+): Promise<CommandResult> {
+  const result = await runObservedCommand(evidence, command, args, options);
+  if (result.code !== 0) {
+    throw new Error(
+      `${command} ${args.join(" ")} failed with ${result.code}\n${result.stderr}`
+    );
+  }
+  return result;
+}
+
+async function writeEvidenceManifest(
+  evidence: EvidenceRecorder,
+  fallbackJob: Job,
+  store: LocalJobStore,
+  reporter: JobReporter,
+  summary: string
+): Promise<void> {
+  try {
+    const latest = await store.getJob(fallbackJob.id);
+    await evidence.write(latest ?? fallbackJob, latest?.artifacts ?? [], reporter, summary);
+  } catch (error) {
+    console.error(`Failed to write evidence manifest: ${errorMessage(error)}`);
+  }
 }
 
 function buildPrompt(job: Job): string {

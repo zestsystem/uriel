@@ -25,6 +25,8 @@ For every job, the worker:
 7. Runs the selected harness, OpenCode by default.
 8. Runs requested browser and/or Android QA.
 9. Commits changes, pushes the branch, and creates a draft PR with `gh`.
+10. Writes `evidence.json` with the repo contract, commands, QA summaries,
+    artifacts, and PR URL.
 
 ## Nix-First Boundary
 
@@ -37,6 +39,10 @@ Nix surfaces first:
 - `AGENTS.md` for agent instructions
 
 This is the piece missing from generic remote coding workers.
+
+The discovered surfaces become a repo contract. The worker stores that
+contract in `evidence.json` alongside command results and QA artifacts so PR
+comments and external notifiers can all read the same structured record.
 
 ## Orchestration
 
