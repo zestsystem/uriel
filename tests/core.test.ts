@@ -42,7 +42,7 @@ describe("job validation", () => {
     const result = validateCreateJobRequest({
       prompt: "Build the thing",
       qa: "both",
-      repo: "https://github.com/zestsystem/uriel.git"
+      repo: "https://github.com/uriel-agent/uriel.git"
     });
     expect(result.ok).toBe(true);
   });
@@ -50,7 +50,7 @@ describe("job validation", () => {
   it("accepts adopter-defined job sources", () => {
     const result = validateCreateJobRequest({
       prompt: "Build the thing",
-      repo: "https://github.com/zestsystem/uriel.git",
+      repo: "https://github.com/uriel-agent/uriel.git",
       source: "acme/chatops"
     });
     expect(result.ok).toBe(true);

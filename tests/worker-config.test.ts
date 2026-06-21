@@ -5,7 +5,7 @@ import { loadConfig } from "../apps/worker/src/config.ts";
 describe("worker config", () => {
   it("parses framework knobs from environment", () => {
     const config = loadConfig({
-      URIEL_ALLOWED_REPOS: "zestsystem/uriel,https://github.com/acme/app",
+      URIEL_ALLOWED_REPOS: "uriel-agent/uriel,https://github.com/acme/app",
       URIEL_ENABLE_ANDROID_QA: "false",
       URIEL_ENABLE_BROWSER_QA: "false",
       URIEL_MAX_CONCURRENT_JOBS: "3",
@@ -13,7 +13,7 @@ describe("worker config", () => {
     });
 
     expect(config.allowedRepos).toEqual([
-      "zestsystem/uriel",
+      "uriel-agent/uriel",
       "https://github.com/acme/app"
     ]);
     expect(config.enableAndroidQa).toBe(false);

@@ -81,7 +81,7 @@ is unavailable.
 
 ```nix
 {
-  inputs.uriel.url = "github:zestsystem/uriel";
+  inputs.uriel.url = "github:uriel-agent/uriel";
 
   outputs = { self, nixpkgs, uriel, ... }: {
     nixosConfigurations.worker = nixpkgs.lib.nixosSystem {

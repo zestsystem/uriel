@@ -99,7 +99,7 @@ in
       type = lib.types.listOf lib.types.str;
       default = [ ];
       example = [
-        "zestsystem/uriel"
+        "uriel-agent/uriel"
         "https://github.com/acme/app"
       ];
       description = ''
