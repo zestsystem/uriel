@@ -4,6 +4,7 @@ import { dirname } from "node:path";
 
 export interface CommandResult {
   code: number;
+  durationMs: number;
   stderr: string;
   stdout: string;
 }
@@ -21,6 +22,7 @@ export async function runCommand(
   options: RunCommandOptions = {}
 ): Promise<CommandResult> {
   return new Promise((resolve, reject) => {
+    const startedAt = Date.now();
     const child = spawn(command, args, {
       cwd: options.cwd,
       env: { ...process.env, ...options.env },
@@ -62,7 +64,7 @@ export async function runCommand(
       if (timeout) {
         clearTimeout(timeout);
       }
-      resolve({ code: code ?? 1, stderr, stdout });
+      resolve({ code: code ?? 1, durationMs: Date.now() - startedAt, stderr, stdout });
     });
     if (options.input) {
       child.stdin.write(options.input);

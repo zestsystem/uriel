@@ -8,6 +8,8 @@ for how a project builds, tests, and runs.
 The point is simple: remote coding agents should understand Nix. Uriel supplies
 a reproducible NixOS host, fresh Git worktrees, Nix/direnv-aware command
 execution, Android/browser QA capture, local artifacts, and PR creation.
+Each job also emits an `evidence.json` manifest for command results, discovered
+repo contract data, QA summaries, artifacts, and PR links.
 
 Uriel core does not assume any company, issue tracker, secret manager, hosted
 coordination service, or chat platform. Those concerns live behind optional
@@ -135,7 +137,8 @@ Adapter dimensions:
   Uriel core
 
 See [Adapter Contracts](docs/adapters.md) for the provider-neutral interfaces.
-
+See [Repo Contract And Evidence](docs/repo-contract.md) for the Nix-first
+discovery and evidence manifest format.
 ## License
 
 Apache-2.0.
