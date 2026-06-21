@@ -9,11 +9,10 @@ The recommended interface is an environment file:
 URIEL_WORKER_TOKEN=...
 GH_TOKEN=...
 OPENCODE_MODEL=...
-URIEL_ADAPTER_ISSUE_TRACKER=linear
-URIEL_ADAPTER_LINEAR_API_KEY=...
-URIEL_ADAPTER_LINEAR_TEAM_KEY=APP
-URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE=In Progress
 ```
+
+Adapter-specific credentials can live in the same file, but they are not part
+of the core worker contract.
 
 Then wire it into the module:
 

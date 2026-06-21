@@ -24,12 +24,11 @@ NixOS secret mechanism:
 URIEL_WORKER_TOKEN=...
 GH_TOKEN=...
 OPENCODE_MODEL=...
-URIEL_ADAPTER_ISSUE_TRACKER=linear
-URIEL_ADAPTER_LINEAR_API_KEY=...
-URIEL_ADAPTER_LINEAR_TEAM_KEY=APP
-URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE=In Progress
 URIEL_ADAPTER_REPO_BOOTSTRAP=direnv
 ```
+
+Issue tracker, chat, and ingress integrations are optional adapters. Add their
+environment variables only when the deployment enables those adapters.
 
 Deploy the host:
 

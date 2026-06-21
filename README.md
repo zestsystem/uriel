@@ -67,7 +67,6 @@ nix run .#urielctl -- submit \
   --repo https://github.com/acme/mobile-app.git \
   --prompt "Fix the failing mobile registration test" \
   --issue APP-1234 \
-  --issue-tracker linear \
   --repo-bootstrap direnv \
   --qa both
 ```
@@ -111,13 +110,14 @@ Common variables:
 - `URIEL_WORKER_TOKEN`
 - `GH_TOKEN`
 - `OPENCODE_MODEL`
-- `URIEL_ADAPTER_ISSUE_TRACKER`
-- `URIEL_ADAPTER_LINEAR_API_KEY`
-- `URIEL_ADAPTER_LINEAR_TEAM_KEY`
-- `URIEL_ADAPTER_LINEAR_IN_PROGRESS_STATE`
 - `URIEL_ADAPTER_REPO_BOOTSTRAP`
 - `URIEL_BROWSER_URL`
 - `URIEL_ANDROID_AVD`
+
+Optional issue tracker adapters can use generic adapter variables such as
+`URIEL_ADAPTER_ISSUE_TRACKER`, `URIEL_ADAPTER_ISSUE_TRACKER_API_KEY`,
+`URIEL_ADAPTER_ISSUE_TRACKER_TEAM_KEY`, and
+`URIEL_ADAPTER_ISSUE_TRACKER_IN_PROGRESS_STATE`.
 
 ## Profiles And Adapters
 
@@ -127,7 +127,7 @@ bundle of adapter choices, not a hardcoded repository identity.
 Adapter dimensions:
 
 - Harness: currently OpenCode; Hermes can be added as an optional harness
-- Issue tracker: optional, currently Linear
+- Issue tracker: optional adapter selected by name; no default
 - Repo bootstrap: optional, currently `direnv`
 - QA capability: `browser`, `android`, or both
 - Artifact storage: local worker filesystem by default
