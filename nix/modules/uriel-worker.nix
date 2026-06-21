@@ -45,12 +45,15 @@ let
       nodejs_22
       pnpm
       rsync
-      android-tools
-      chromium
       opencodeWrapper
     ]
+    ++ lib.optionals cfg.enableAndroidQa [
+      android-tools
+      androidSdk.androidsdk
+    ]
+    ++ lib.optionals cfg.enableBrowserQa [ chromium ]
     ++ lib.optionals (pkgs ? maestro) [ pkgs.maestro ]
-    ++ [ androidSdk.androidsdk ];
+    ++ cfg.extraPackages;
 in
 {
   options.services.uriel-worker = {
@@ -92,6 +95,35 @@ in
       description = "Worker bind port.";
     };
 
+    allowedRepos = lib.mkOption {
+      type = lib.types.listOf lib.types.str;
+      default = [ ];
+      example = [
+        "zestsystem/uriel"
+        "https://github.com/acme/app"
+      ];
+      description = ''
+        Optional allowlist for repositories this worker may accept. Entries can
+        be GitHub owner/repo slugs or full GitHub repository URLs. An empty list
+        allows any GitHub repository URL accepted by the worker API.
+      '';
+    };
+
+    maxConcurrentJobs = lib.mkOption {
+      type = lib.types.ints.positive;
+      default = 1;
+      description = "Maximum number of jobs the local worker may run at once.";
+    };
+
+    artifactRetentionDays = lib.mkOption {
+      type = lib.types.nullOr lib.types.ints.positive;
+      default = null;
+      description = ''
+        Optional tmpfiles cleanup age for local artifacts. Null keeps artifacts
+        until an operator deletes them.
+      '';
+    };
+
     environmentFiles = lib.mkOption {
       type = lib.types.listOf lib.types.path;
       default = [ ];
@@ -108,16 +140,34 @@ in
       description = "Optional URL for browser QA smoke captures.";
     };
 
+    enableBrowserQa = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether to include browser QA tools and allow browser QA jobs.";
+    };
+
     androidAvd = lib.mkOption {
       type = lib.types.nullOr lib.types.str;
       default = null;
       description = "Optional Android AVD name to boot before Android QA.";
     };
 
+    enableAndroidQa = lib.mkOption {
+      type = lib.types.bool;
+      default = true;
+      description = "Whether to include Android QA tools and allow Android QA jobs.";
+    };
+
     extraEnvironment = lib.mkOption {
       type = lib.types.attrsOf lib.types.str;
       default = { };
       description = "Additional environment variables for the worker.";
+    };
+
+    extraPackages = lib.mkOption {
+      type = lib.types.listOf lib.types.package;
+      default = [ ];
+      description = "Additional packages to add to the worker service PATH.";
     };
   };
 
@@ -128,7 +178,7 @@ in
       group = cfg.group;
       home = cfg.stateDir;
       createHome = true;
-      extraGroups = [
+      extraGroups = lib.optionals cfg.enableAndroidQa [
         "adbusers"
         "kvm"
         "render"
@@ -136,9 +186,9 @@ in
       ];
     };
 
-    programs.adb.enable = true;
+    programs.adb.enable = cfg.enableAndroidQa;
     users.groups.adbusers = { };
-    services.udev.packages = lib.optionals (pkgs ? android-udev-rules) [
+    services.udev.packages = lib.optionals (cfg.enableAndroidQa && pkgs ? android-udev-rules) [
       pkgs.android-udev-rules
     ];
 
@@ -154,7 +204,9 @@ in
       "d ${toString cfg.stateDir} 0750 ${cfg.user} ${cfg.group} - -"
       "d ${toString cfg.stateDir}/repos 0750 ${cfg.user} ${cfg.group} - -"
       "d ${toString cfg.stateDir}/worktrees 0750 ${cfg.user} ${cfg.group} - -"
-      "d ${toString cfg.stateDir}/artifacts 0750 ${cfg.user} ${cfg.group} - -"
+      "d ${toString cfg.stateDir}/artifacts 0750 ${cfg.user} ${cfg.group} ${
+        if cfg.artifactRetentionDays == null then "-" else "${toString cfg.artifactRetentionDays}d"
+      } -"
     ];
 
     systemd.services.uriel-worker = {
@@ -164,11 +216,19 @@ in
       wantedBy = [ "multi-user.target" ];
       path = runtimePath;
       environment = {
-        ANDROID_HOME = "${androidSdk.androidsdk}/libexec/android-sdk";
-        ANDROID_SDK_ROOT = "${androidSdk.androidsdk}/libexec/android-sdk";
+        URIEL_ENABLE_ANDROID_QA = if cfg.enableAndroidQa then "true" else "false";
+        URIEL_ENABLE_BROWSER_QA = if cfg.enableBrowserQa then "true" else "false";
+        URIEL_MAX_CONCURRENT_JOBS = toString cfg.maxConcurrentJobs;
         URIEL_STATE_DIR = toString cfg.stateDir;
         URIEL_WORKER_HOST = cfg.host;
         URIEL_WORKER_PORT = toString cfg.port;
+      }
+      // lib.optionalAttrs cfg.enableAndroidQa {
+        ANDROID_HOME = "${androidSdk.androidsdk}/libexec/android-sdk";
+        ANDROID_SDK_ROOT = "${androidSdk.androidsdk}/libexec/android-sdk";
+      }
+      // lib.optionalAttrs (cfg.allowedRepos != [ ]) {
+        URIEL_ALLOWED_REPOS = lib.concatStringsSep "," cfg.allowedRepos;
       }
       // lib.optionalAttrs (cfg.browserUrl != null) {
         URIEL_BROWSER_URL = cfg.browserUrl;
