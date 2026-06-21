@@ -6,6 +6,7 @@ import {
   buildBranchName,
   createJobEvent,
   createId,
+  parseGitHubRepo,
   type CreateJobRequest,
   type Job,
   validateCreateJobRequest
@@ -14,7 +15,13 @@ import { loadConfig, type WorkerConfig } from "./config.ts";
 import { runJob } from "./runner.ts";
 import { LocalJobStore } from "./store.ts";
 
-const queue: { running: Promise<void> } = { running: Promise.resolve() };
+const scheduler: {
+  active: number;
+  pending: Array<() => Promise<void>>;
+} = {
+  active: 0,
+  pending: []
+};
 
 async function main(argv: string[]): Promise<void> {
   const [command, ...rest] = argv;
@@ -81,9 +88,13 @@ async function handleRequest(
         writeJson(response, 400, { error: validation.error });
         return;
       }
+      if (!repoAllowed(config, validation.value.repo)) {
+        writeJson(response, 403, { error: "Repository is not allowed by this worker." });
+        return;
+      }
       const store = new LocalJobStore(config);
       const job = await store.putJob(createJob(validation.value));
-      queue.running = queue.running.then(() => runJob(job, config));
+      enqueueJob(job, config);
       writeJson(response, 202, { ok: true, jobId: job.id });
       return;
     }
@@ -172,6 +183,29 @@ async function handleRequest(
   }
 }
 
+function enqueueJob(job: Job, config: WorkerConfig): void {
+  scheduler.pending.push(() => runJob(job, config));
+  drainQueue(config.maxConcurrentJobs);
+}
+
+function drainQueue(maxConcurrentJobs: number): void {
+  while (scheduler.active < maxConcurrentJobs && scheduler.pending.length > 0) {
+    const run = scheduler.pending.shift();
+    if (!run) {
+      return;
+    }
+    scheduler.active += 1;
+    void run()
+      .catch((error) => {
+        console.error(error instanceof Error ? error.stack ?? error.message : String(error));
+      })
+      .finally(() => {
+        scheduler.active -= 1;
+        drainQueue(maxConcurrentJobs);
+      });
+  }
+}
+
 function createJob(request: CreateJobRequest): Job {
   const now = new Date().toISOString();
   return {
@@ -192,6 +226,17 @@ function createJob(request: CreateJobRequest): Job {
     status: "queued",
     updatedAt: now
   };
+}
+
+function repoAllowed(config: WorkerConfig, repo: string): boolean {
+  if (config.allowedRepos.length === 0) {
+    return true;
+  }
+  const parsed = parseGitHubRepo(repo);
+  return config.allowedRepos.some((allowed) => {
+    const normalized = allowed.trim().replace(/\.git$/u, "");
+    return normalized === repo.replace(/\.git$/u, "") || normalized === parsed?.slug;
+  });
 }
 
 function authorized(request: IncomingMessage, expected: string): boolean {

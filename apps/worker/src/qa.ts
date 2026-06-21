@@ -43,6 +43,11 @@ async function runBrowserQa(
   reporter: JobReporter,
   evidence?: EvidenceRecorder
 ): Promise<string> {
+  if (!config.enableBrowserQa) {
+    await reporter.event("qa", "warn", "Skipping browser QA; browser QA is disabled.");
+    return "Browser QA skipped: disabled by worker config.";
+  }
+
   if (!config.browserUrl) {
     await reporter.event(
       "qa",
@@ -106,6 +111,11 @@ async function runAndroidQa(
   reporter: JobReporter,
   evidence?: EvidenceRecorder
 ): Promise<string> {
+  if (!config.enableAndroidQa) {
+    await reporter.event("qa", "warn", "Skipping Android QA; Android QA is disabled.");
+    return "Android QA skipped: disabled by worker config.";
+  }
+
   if (!(await exists("/dev/kvm"))) {
     await reporter.event(
       "qa",

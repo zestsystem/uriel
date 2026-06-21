@@ -10,6 +10,9 @@ QA evidence on the NixOS host.
 {
   services.uriel-worker = {
     enable = true;
+    allowedRepos = [ "zestsystem/uriel" ];
+    maxConcurrentJobs = 1;
+    artifactRetentionDays = 14;
     environmentFiles = [
       "/run/secrets/uriel-worker.env"
     ];
@@ -29,6 +32,15 @@ URIEL_ADAPTER_REPO_BOOTSTRAP=direnv
 
 Issue tracker, chat, and ingress integrations are optional adapters. Add their
 environment variables only when the deployment enables those adapters.
+
+Useful NixOS module knobs:
+
+- `allowedRepos`: restricts the worker to specific GitHub URLs or `owner/repo`
+  slugs.
+- `maxConcurrentJobs`: caps local worker concurrency.
+- `artifactRetentionDays`: enables tmpfiles cleanup for local artifacts.
+- `enableBrowserQa` / `enableAndroidQa`: include or disable QA toolchains.
+- `extraPackages`: adds repo-specific tools to the worker service `PATH`.
 
 Deploy the host:
 
