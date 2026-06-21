@@ -18,7 +18,7 @@ adapters or outside the worker API.
 - `apps/worker`: local HTTP worker daemon for jobs, state, artifacts, and QA.
 - `apps/cli`: `urielctl` for submitting and inspecting jobs.
 - `packages/core`: shared job schemas, branch naming, profile rule matching,
-  and webhook signature helpers for future integrations.
+  adapter contracts, and webhook signature helpers for future integrations.
 - `nix/modules`: NixOS and Home Manager modules.
 
 No hosted coordination service is required. The worker stores JSON job state under
@@ -133,6 +133,8 @@ Adapter dimensions:
 - Artifact storage: local worker filesystem by default
 - Ingress/orchestration: local HTTP by default; Hermes or bots can sit outside
   Uriel core
+
+See [Adapter Contracts](docs/adapters.md) for the provider-neutral interfaces.
 
 ## License
 
